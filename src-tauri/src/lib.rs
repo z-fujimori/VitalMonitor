@@ -36,7 +36,18 @@ fn spawn_tray_updater(app: tauri::AppHandle) {
         }
       };
 
-      let text = format!("{:.0}%", pressure_pct);
+      let cpu_pct = match crate::mac_metrics::read_cpu_usage_pct().await {
+        Ok(v) => v,
+        Err(e) => {
+          eprintln!("cpu usage error: {e}");
+          continue;
+        }
+      };
+
+      let mem_text = format!("Mem {:.0}%", pressure_pct);
+      let cpu_text = format!("CPU {:.0}%", cpu_pct);
+
+      let text = format!("{} {}", cpu_text, mem_text);
 
       if let Some(state) = app.try_state::<TrayState>() {
         if let Ok(tray) = state.tray.lock() {

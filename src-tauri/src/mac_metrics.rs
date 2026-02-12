@@ -26,3 +26,19 @@ pub async fn read_memory_pressure_pct() -> Result<f64, Box<dyn std::error::Error
   // free% → pressure% に変換（あなたが表示したいのが pressure 側なら）
   Ok((100.0 - free_pct).clamp(0.0, 100.0))
 }
+
+// #[cfg(not(target_os = "macos"))]
+pub async fn read_cpu_usage_pct() -> Result<f32, Box<dyn std::error::Error + Send + Sync>> {
+  // sysinfo クレートを使って CPU 使用率を取得
+  let cpu_usage = get_cpu();
+  Ok(cpu_usage)
+}
+
+fn get_cpu() -> f32 {
+    use sysinfo::System;
+
+    let mut sys = System::new();
+    sys.refresh_cpu();
+    sys.global_cpu_info().cpu_usage()
+}
+
