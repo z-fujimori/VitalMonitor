@@ -4243,6 +4243,7 @@ dependencies = [
  "anyhow",
  "libc",
  "mach2",
+ "regex",
  "serde",
  "serde_json",
  "sysinfo",

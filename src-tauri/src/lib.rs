@@ -1,5 +1,4 @@
 use tauri::{
-  AppHandle,
   Manager,
   menu::{
     Menu,
@@ -12,7 +11,6 @@ use tauri::{
   }
 };
 use std::sync::Mutex;
-use tokio::time::{sleep, Duration};
 
 mod mac_metrics;
 

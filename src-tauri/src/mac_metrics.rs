@@ -1,9 +1,10 @@
-use std::process::Command;
+use tokio::process::Command;
+use tokio::time::{timeout, Duration, Instant};
+use regex::Regex;
+use std::net::TcpStream;
 
 #[cfg(target_os = "macos")]
 pub async fn read_memory_pressure_pct() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
-  use tokio::process::Command;
-
   let output = Command::new("memory_pressure")
     .arg("-Q")
     .output()
@@ -42,3 +43,58 @@ fn get_cpu() -> f32 {
     sys.global_cpu_info().cpu_usage()
 }
 
+
+pub async fn network_latency_ms() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
+    // DNS遅延を排除したいので IP 直指定が無難（Cloudflare）
+    let host = "1.1.1.1";
+
+    // ping が詰まるケース対策：外側で timeout をかける（OS差を吸収）
+    let fut = Command::new("ping")
+        .arg("-n")          // 逆引きDNSを抑制（macOSで有効）
+        .arg("-c").arg("1") // 1回だけ
+        .arg(host)
+        .output();
+
+    let output = timeout(Duration::from_secs(2), fut)
+        .await
+        .map_err(|_| format!("ping timeout (host={})", host))??;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ping failed (host={}): {}", host, stderr.trim()).into());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // macOS/Linuxで出力が微妙に違っても拾えるように正規表現
+    // 例: time=14.2 ms / time=14.2ms など
+    let re = Regex::new(r"time[=<]?\s*([0-9]+(?:\.[0-9]+)?)\s*ms")?;
+
+    let caps = re
+        .captures(&stdout)
+        .ok_or_else(|| format!("latency not found in ping output: {}", stdout))?;
+
+    let ms: f64 = caps
+        .get(1)
+        .ok_or("failed to get capture group")?
+        .as_str()
+        .parse()?;
+    Ok(ms)
+}
+
+
+
+pub fn read_network_latency_ms() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
+    // DNS遅延を排除したいので IP 直指定が無難（Cloudflare）
+    let latency_ms = tcp_latency().ok_or("tcp latency measurement failed")? as f64;
+    Ok(latency_ms)
+}
+
+fn tcp_latency() -> Option<u128> {
+    let addr = "1.1.1.1:443".parse().ok()?;
+    let start = Instant::now();
+
+    TcpStream::connect_timeout(&addr, Duration::from_secs(2)).ok()?;
+
+    Some(start.elapsed().as_millis())
+}

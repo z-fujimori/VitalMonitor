@@ -1,0 +1,1 @@
+// macOSでの取得（CPU/Memory/NW）※OS依存まとめる
