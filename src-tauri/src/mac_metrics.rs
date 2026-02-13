@@ -84,10 +84,11 @@ pub async fn network_latency_ms() -> Result<f64, Box<dyn std::error::Error + Sen
 
 
 
-pub fn read_network_latency_ms() -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
+pub fn read_network_latency_ms() -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
     // DNS遅延を排除したいので IP 直指定が無難（Cloudflare）
     let latency_ms = tcp_latency().ok_or("tcp latency measurement failed")? as f64;
-    Ok(latency_ms)
+
+    Ok(latency_ms as u64)
 }
 
 fn tcp_latency() -> Option<u128> {

@@ -42,10 +42,19 @@ fn spawn_tray_updater(app: tauri::AppHandle) {
         }
       };
 
+      let nw_ms = match crate::mac_metrics::network_latency_ms().await {
+        Ok(v) => v,
+        Err(e) => {
+          eprintln!("network latency error: {e}");
+          continue;
+        }
+      };
+
       let mem_text = format!("Mem {:.0}%", pressure_pct);
       let cpu_text = format!("CPU {:.0}%", cpu_pct);
+      let nw_text = format!("NW {:.0}ms", nw_ms);
 
-      let text = format!("{} {}", cpu_text, mem_text);
+      let text = format!("{} {} {}", cpu_text, mem_text, nw_text);
 
       if let Some(state) = app.try_state::<TrayState>() {
         if let Ok(tray) = state.tray.lock() {
