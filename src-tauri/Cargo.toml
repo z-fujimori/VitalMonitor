@@ -29,3 +29,4 @@ sysinfo = "0.30"
 # macOS only（他OSビルドも通すなら cfg で囲う）
 mach2 = "0.4"
 libc = "0.2"
+regex = "1.12.3"
