@@ -111,3 +111,19 @@ impl Policy<Millisecond> for NetworkPolicy {
         level_by_threshold(value.0, self.thresholds)
     }
 }
+
+#[derive(Debug)]
+pub enum ReadError {
+    CommandSpawn(&'static str),
+    NonZeroExit(&'static str),
+    Utf8(std::string::FromUtf8Error),
+    Parse(&'static str),
+    Io(std::io::Error),
+}
+
+impl From<std::io::Error> for ReadError {
+    fn from(e: std::io::Error) -> Self { ReadError::Io(e) }
+}
+impl From<std::string::FromUtf8Error> for ReadError {
+    fn from(e: std::string::FromUtf8Error) -> Self { ReadError::Utf8(e) }
+}
