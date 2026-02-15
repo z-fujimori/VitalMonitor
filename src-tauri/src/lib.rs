@@ -17,6 +17,7 @@ use std::sync::Mutex;
 
 mod mac_metrics;
 mod ui;
+mod metrics;
 
 pub struct TrayState {
   pub tray: Mutex<TrayIcon>,
@@ -53,6 +54,11 @@ fn spawn_tray_updater(app: tauri::AppHandle) {
           continue;
         }
       };
+
+      let demo_metrics_cpu = crate::mac_metrics::read_cpu_usage_pct().await; // --- IGNORE ---
+      let demo_metrics_mem = crate::metrics::collect_macos::read_memory_pressure_pct().await; // --- IGNORE ---
+      let demo_metrics_nw = crate::mac_metrics::read_network_latency_ms(); // --- IGNORE ---
+      println!("demo cpu: {:?}, mem: {:?}, nw: {:?}", demo_metrics_cpu, demo_metrics_mem, demo_metrics_nw); // --- IGNORE ---
 
       let mem_text = format!("Mem {:.0}%", pressure_pct);
       let cpu_text = format!("CPU {:.0}%", cpu_pct);

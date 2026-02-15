@@ -43,8 +43,8 @@ pub async fn read_cpu_usage_pct() -> Result<Percent, ReadError> {
     // 2回目の更新（差分から使用率が出る）
     sys.refresh_cpu_usage();
 
-    let usage = sys.global_cpu_usage(); // f32 (0..=100)
-    Ok(Percent(usage.clamp(0.0, 100.0)))
+    let usage = sys.global_cpu_info().cpu_usage(); // f32 (0..=100)
+    Ok(Percent(usage).clamp_0_100())
 }
 
 pub fn network_latency_ms_tcp() -> Result<Millisecond, ReadError> {

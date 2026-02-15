@@ -2,6 +2,11 @@
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Percent(pub f32);
+impl Percent {
+    pub fn clamp_0_100(self) -> Self {
+        Percent(self.0.clamp(0.0, 100.0))
+    }
+}
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Millisecond(pub f32);
 
@@ -119,6 +124,9 @@ pub enum ReadError {
     Utf8(std::string::FromUtf8Error),
     Parse(&'static str),
     Io(std::io::Error),
+    Timeout(&'static str),
+    Other(String),
+
 }
 
 impl From<std::io::Error> for ReadError {
