@@ -2,6 +2,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use std::time::{Duration, Instant};
 
+use crate::metrics::types::{SharedMetrics, MetricsSnapshot};
+
 pub fn spawn_metric_tasks(metrics: SharedMetrics) {
     let get_cpu_interval = 1;
     let get_mem_interval = 1;
@@ -12,13 +14,12 @@ pub fn spawn_metric_tasks(metrics: SharedMetrics) {
     tauri::async_runtime::spawn({
         let metrics = Arc::clone(&metrics);
         async move {
-            let mut tick = tokio::time::interval(Duration::from_secs(cpu_secs));
+            let mut tick = tokio::time::interval(Duration::from_secs(get_cpu_interval));
             loop {
                 tick.tick().await;
                 let v = crate::mac_metrics::read_cpu_usage_pct().await.ok();
                 let mut m = metrics.write().await;
                 m.cpu_pct = v;
-                m.cpu_at = Some(Instant::now());
             }
         }
     });
@@ -27,13 +28,12 @@ pub fn spawn_metric_tasks(metrics: SharedMetrics) {
     tauri::async_runtime::spawn({
         let metrics = Arc::clone(&metrics);
         async move {
-            let mut tick = tokio::time::interval(Duration::from_secs(mem_secs));
+            let mut tick = tokio::time::interval(Duration::from_secs(get_mem_interval));
             loop {
                 tick.tick().await;
-                let v = crate::mac_metrics::read_memory_pressure_pct().await.ok();
+                let v  = crate::mac_metrics::read_memory_pressure_pct().await.ok().map(|x| x as f32);;
                 let mut m = metrics.write().await;
                 m.mem_pressure_pct = v;
-                m.mem_at = Some(Instant::now());
             }
         }
     });
@@ -42,12 +42,12 @@ pub fn spawn_metric_tasks(metrics: SharedMetrics) {
     tauri::async_runtime::spawn({
         let metrics = Arc::clone(&metrics);
         async move {
-            let mut tick = tokio::time::interval(Duration::from_secs(nw_secs));
+            let mut tick = tokio::time::interval(Duration::from_secs(get_nw_interval));
             loop {
                 tick.tick().await;
 
                 let v = tokio::time::timeout(
-                    Duration::from_secs(nw_timeout_secs),
+                    Duration::from_secs(get_nw_timeout),
                     crate::mac_metrics::network_latency_ms(),
                 )
                 .await
@@ -56,7 +56,6 @@ pub fn spawn_metric_tasks(metrics: SharedMetrics) {
 
                 let mut m = metrics.write().await;
                 m.nw_ms = v;
-                m.nw_at = Some(Instant::now());
             }
         }
     });
