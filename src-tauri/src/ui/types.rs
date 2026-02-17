@@ -70,6 +70,17 @@ impl TrayUiState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AlertLevel { Safe, Normal, Warning, Critical }
 
+impl AlertLevel {
+    pub fn icon(self) -> &'static str {
+        match self {
+            AlertLevel::Safe => "🔵",
+            AlertLevel::Normal => "🟢",
+            AlertLevel::Warning => "🟤",
+            AlertLevel::Critical => "🔴",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Metric<V> {
     pub value: V,
