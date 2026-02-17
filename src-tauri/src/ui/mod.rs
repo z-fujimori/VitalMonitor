@@ -1,2 +1,2 @@
-mod types;
-pub use self::types::{TrayUiState, TrayConfig, DisplayMode};
+pub mod types;
+pub mod tray;
