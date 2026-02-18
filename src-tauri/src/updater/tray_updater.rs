@@ -1,65 +1,107 @@
-use crate::TrayState;
 use tauri::Manager;
+
+use crate::TrayState;
+use crate::ui::types::{AlertLevel, DisplayMode, TrayConfig, ClassifiedSnapshot};
 
 pub fn spawn_tray_renderer(app: tauri::AppHandle, metrics: crate::metrics::types::SharedMetrics) {
     let render_interval = 1;
-    let otation_interval = 3;
+    let rotation_interval = 5;
 
     tauri::async_runtime::spawn(async move {
-    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(render_interval));
+        let mut render_ticker = tokio::time::interval(std::time::Duration::from_secs(render_interval));
+        let mut rotation_tick = tokio::time::interval(std::time::Duration::from_secs(rotation_interval));
+        let mut rotation_index = 0;
         loop {
-            ticker.tick().await;
+            tokio::select! {
+                _ = render_ticker.tick() => {
+                    let cfg: TrayConfig = match app.try_state::<crate::ui::types::TrayUiState>() {
+                        Some(st) => *st.config.lock().unwrap(),
+                        None => continue,
+                    };
+                      
+                    let snap = metrics.read().await.clone();
+                    let snap_classified = crate::ui::types::ClassifiedSnapshot::new(snap);
+                    
+                    
+                    let title = format_title(&cfg, &snap_classified, &mut rotation_index);
+                    
+                    if let Some(state) = app.try_state::<TrayState>() {
+                        if let Ok(tray) = state.tray.lock() {
+                            let _ = tray.set_title(Some(&title));
+                        }
+                    }
+                },
 
-            let cfg = match app.try_state::<crate::ui::types::TrayUiState>() {
-                Some(st) => *st.config.lock().unwrap(),
-                None => continue,
-            };
-
-            let snap = metrics.read().await.clone();
-            let snap_classified = crate::ui::types::ClassifiedSnapshot::new(snap);
-
-            let title = format_title(&cfg, &snap_classified);
-
-            if let Some(state) = app.try_state::<TrayState>() {
-                if let Ok(tray) = state.tray.lock() {
-                    let _ = tray.set_title(Some(&title));
-                }
+                _ = rotation_tick.tick() => {
+                    rotation_index = rotation_index.wrapping_add(1);
+                    rotation_index %= 6; // TODO: magic number
+                },
             }
         }
     });
 }
 
-fn format_title(cfg: &crate::ui::types::TrayConfig, s: &crate::ui::types::ClassifiedSnapshot) -> String {
+pub fn format_title(
+    cfg: &TrayConfig,
+    s: &ClassifiedSnapshot,
+    rotation_index: &mut usize,
+) -> String {
+    match cfg.mode {
+        DisplayMode::List => format_list(cfg, s),
+        DisplayMode::Rotation => format_rotation(cfg, s, rotation_index),
+    }
+}
+
+fn icon(cfg: &TrayConfig, level: AlertLevel) -> &'static str {
+    if cfg.is_alert { level.icon() } else { "" }
+}
+
+fn format_list(cfg: &TrayConfig, s: &ClassifiedSnapshot) -> String {
     let mut parts = Vec::new();
     if cfg.show_cpu {
-        let alertIcon = s.cpu.map(|m| match m.level {
-            crate::ui::types::AlertLevel::Safe => "🔵",
-            crate::ui::types::AlertLevel::Normal => "🟢",
-            crate::ui::types::AlertLevel::Warning => "🟤",
-            crate::ui::types::AlertLevel::Critical => "🔴",
-        }).unwrap_or("");
-        parts.push(match s.cpu { Some(v) => format!("{} CPU {:.0}%", alertIcon, v.value), None => "CPU --".into() });
+        parts.push(match s.cpu {
+            Some(m) => format!("{} CPU {}%", icon(cfg, m.level), m.value),
+            None => "CPU --".into(),
+        });
     }
     if cfg.show_mem {
-            let alertIcon = s.mem.map(|m| match m.level {
-                crate::ui::types::AlertLevel::Safe => "🔵",
-                crate::ui::types::AlertLevel::Normal => "🟢",
-                crate::ui::types::AlertLevel::Warning => "🟤",
-                crate::ui::types::AlertLevel::Critical => "🔴",
-            }).unwrap_or("");
-        parts.push(match s.mem { Some(v) => format!("{} Mem {:.0}%", alertIcon, v.value), None => "Mem --".into() });
+        parts.push(match s.mem {
+            Some(m) => format!("{} Mem {:.0}%", icon(cfg, m.level), m.value),
+            None => "Mem --".into(),
+        });
     }
     if cfg.show_nw {
-            let alertIcon = s.nw.map(|m| match m.level {
-                crate::ui::types::AlertLevel::Safe => "🔵",
-                crate::ui::types::AlertLevel::Normal => "🟢",
-                crate::ui::types::AlertLevel::Warning => "🟤",
-                crate::ui::types::AlertLevel::Critical => "🔴",
-            }).unwrap_or("");
-        parts.push(match s.nw { Some(v) => format!("{} NW {:.0}ms", alertIcon, v.value), None => "NW --".into() });
+        parts.push(match s.nw {
+            Some(m) => format!("{} NW {:.0}ms", icon(cfg, m.level), m.value),
+            None => "NW --".into(),
+        });
     }
-    let mut text = parts.join(" ");
 
-    text = text.trim().to_string();
+    let text = parts.join(" ");
+    text
+}
+
+fn format_rotation(cfg: &TrayConfig, s: &ClassifiedSnapshot, rotation_index: &mut usize) -> String {
+    let text = match *rotation_index%3 {
+        0 => if cfg.show_cpu {
+            match s.cpu {
+                Some(m) => format!("{} CPU {}%", icon(cfg, m.level), m.value),
+                None => "CPU --".into(),
+            }
+        } else { "".into() },
+        1 => if cfg.show_mem {
+            match s.mem {
+                Some(m) => format!("{} Mem {:.0}%", icon(cfg, m.level), m.value),
+                None => "Mem --".into(),
+            }
+        } else { "".into() },
+        2 => if cfg.show_nw {
+            match s.nw {
+                Some(m) => format!("{} NW {:.0}ms", icon(cfg, m.level), m.value),
+                None => "NW --".into(),
+            }
+        } else { "".into() },
+        _ => unreachable!(),
+    };
     text
 }
