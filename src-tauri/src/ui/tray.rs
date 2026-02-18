@@ -3,12 +3,13 @@ use tauri::{
     App,
     Manager,
     menu::{Menu, MenuItem, PredefinedMenuItem, Submenu, CheckMenuItem},
-    tray::{TrayIcon, TrayIconBuilder},
+    tray::TrayIconBuilder,
 };
-use crate::ui::types::{TrayUiState, TrayConfig, DisplayMode};
+use tokio::fs;
+use crate::ui::{self, types::{DisplayMode, TrayConfig, TrayUiState}};
 use crate::TrayState;
 
-pub fn build_tray(app: &App) -> tauri::Result<()> {
+pub fn build_tray(app: &App, initial_cfg: TrayConfig) -> tauri::Result<()> {
     // 表示オプションメニューの構築
     let mi_show_cpu = CheckMenuItem::with_id(app, "show_cpu", "CPU Only", true, false, None::<&str>)?;
     let mi_show_mem = CheckMenuItem::with_id(app, "show_mem", "Memory Only", true, false, None::<&str>)?;
@@ -47,11 +48,11 @@ pub fn build_tray(app: &App) -> tauri::Result<()> {
 
     let ui_state = TrayUiState {
         config: Mutex::new(TrayConfig {
-        show_cpu: true,
-        show_mem: true,
-        show_nw: true,
-        mode: DisplayMode::List,
-        is_alert: true,
+        show_cpu: initial_cfg.show_cpu,
+        show_mem: initial_cfg.show_mem,
+        show_nw: initial_cfg.show_nw,
+        mode: initial_cfg.mode,
+        is_alert: initial_cfg.is_alert,
         }),
         mi_show_cpu,
         mi_show_mem,
@@ -72,32 +73,38 @@ pub fn build_tray(app: &App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| {
-        //   let id = event.menu_item_id();
-        match event.id.as_ref() {
-            "exit" => {
-            std::process::exit(0);
-            },
-            _ => {},
-        }
-
-        let ui_state = app.state::<TrayUiState>();
-        {
-            let mut cfg = ui_state.config.lock().unwrap();
-            match event.id.as_ref() {
-                "show_cpu" => { cfg.show_cpu = true; cfg.show_mem = false; cfg.show_nw = false; },
-                "show_mem" => { cfg.show_cpu = false; cfg.show_mem = true; cfg.show_nw = false; },
-                "show_nw"  => { cfg.show_cpu = false; cfg.show_mem = false; cfg.show_nw = true; },
-                "show_cpu_mem" => { cfg.show_cpu = true; cfg.show_mem = true; cfg.show_nw = false; },
-                "show_mem_nw" => { cfg.show_cpu = false; cfg.show_mem = true; cfg.show_nw = true; },
-                "show_cpu_nw" => { cfg.show_cpu = true; cfg.show_mem = false; cfg.show_nw = true; },
-                "show_all" => { cfg.show_cpu = true; cfg.show_mem = true; cfg.show_nw = true; },
-                "mode_list" => { cfg.mode = DisplayMode::List; },
-                "mode_rotation" => { cfg.mode = DisplayMode::Rotation; },
-                "toggle_alert" => { cfg.is_alert = !cfg.is_alert; },
-                _ => {},
+            if event.id.as_ref() == "exit" {
+                app.exit(0);
+                return;
             }
-        }
-        ui_state.sync_menu_checks();
+
+            let ui_state = app.state::<TrayUiState>();
+
+            // ロック内で状態更新とコピーを行い、ロック外でUI反映と保存を行う
+            // こうしないとデッドロックやUIの更新漏れが発生するので注意
+            let cfg_copy: TrayConfig = {
+                let mut cfg = ui_state.config.lock().unwrap();
+
+                match event.id.as_ref() {
+                    "show_cpu" => { cfg.show_cpu = true;  cfg.show_mem = false; cfg.show_nw = false; }
+                    "show_mem" => { cfg.show_cpu = false; cfg.show_mem = true;  cfg.show_nw = false; }
+                    "show_nw"  => { cfg.show_cpu = false; cfg.show_mem = false; cfg.show_nw = true;  }
+                    "show_cpu_mem" => { cfg.show_cpu = true;  cfg.show_mem = true;  cfg.show_nw = false; }
+                    "show_mem_nw"  => { cfg.show_cpu = false; cfg.show_mem = true;  cfg.show_nw = true;  }
+                    "show_cpu_nw"  => { cfg.show_cpu = true;  cfg.show_mem = false; cfg.show_nw = true;  }
+                    "show_all" => { cfg.show_cpu = true; cfg.show_mem = true; cfg.show_nw = true; }
+                    "mode_list" => { cfg.mode = DisplayMode::List; }
+                    "mode_rotation" => { cfg.mode = DisplayMode::Rotation; }
+                    "toggle_alert" => { cfg.is_alert = !cfg.is_alert; }
+                    _ => {}
+                }
+
+                *cfg // ← ロック中にコピーして返す（ここでロック解放される）
+            };
+
+            // （ロック外） UI反映と保存
+            ui_state.sync_menu_checks();
+            save_config_async(app.app_handle().clone(), cfg_copy);
         })
         .title("Vital Monitor")
         .build(app)?;
@@ -106,4 +113,16 @@ pub fn build_tray(app: &App) -> tauri::Result<()> {
         tray: Mutex::new(tray),
     });
     Ok(())
+}
+
+fn save_config_async(app: tauri::AppHandle, cfg: TrayConfig) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(dir) = app.path().app_config_dir() else { return; };
+        let path = dir.join("tray_config.json");
+
+        let Ok(json) = serde_json::to_string_pretty(&cfg) else { return; };
+
+        let _ = fs::create_dir_all(&dir).await;
+        let _ = fs::write(path, json).await;
+    });
 }
