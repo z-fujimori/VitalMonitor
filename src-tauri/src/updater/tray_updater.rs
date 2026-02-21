@@ -82,26 +82,35 @@ fn format_list(cfg: &TrayConfig, s: &ClassifiedSnapshot) -> String {
 }
 
 fn format_rotation(cfg: &TrayConfig, s: &ClassifiedSnapshot, rotation_index: &mut usize) -> String {
-    let text = match *rotation_index%3 {
-        0 => if cfg.show_cpu {
-            match s.cpu {
-                Some(m) => format!("{} CPU {}%", icon(cfg, m.level), m.value),
-                None => "CPU --".into(),
-            }
-        } else { "".into() },
-        1 => if cfg.show_mem {
-            match s.mem {
-                Some(m) => format!("{} Mem {:.0}%", icon(cfg, m.level), m.value),
-                None => "Mem --".into(),
-            }
-        } else { "".into() },
-        2 => if cfg.show_nw {
-            match s.nw {
-                Some(m) => format!("{} NW {:.0}ms", icon(cfg, m.level), m.value),
-                None => "NW --".into(),
-            }
-        } else { "".into() },
-        _ => unreachable!(),
-    };
-    text
+    let mut items: Vec<String> = Vec::new();
+
+    if cfg.show_cpu {
+        items.push(match s.cpu {
+            Some(m) => format!("{}CPU {}%", icon(cfg, m.level), m.value),
+            None => "CPU --".to_string(),
+        });
+    }
+
+    if cfg.show_mem {
+        items.push(match s.mem {
+            Some(m) => format!("{}Mem {:.0}%", icon(cfg, m.level), m.value),
+            None => "Mem --".to_string(),
+        });
+    }
+
+    if cfg.show_nw {
+        items.push(match s.nw {
+            Some(m) => format!("{}NW {:.0}ms", icon(cfg, m.level), m.value),
+            None => "NW --".to_string(),
+        });
+    }
+
+    if items.is_empty() {
+        return "—".to_string();
+    }
+
+    let idx = *rotation_index % items.len();
+    *rotation_index = rotation_index.wrapping_add(1);
+
+    items[idx].clone()
 }
