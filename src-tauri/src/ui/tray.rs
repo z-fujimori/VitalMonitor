@@ -34,12 +34,14 @@ pub fn build_tray(app: &App, initial_cfg: TrayConfig) -> tauri::Result<()> {
     let mode_items: [&dyn tauri::menu::IsMenuItem<_>; 2] = [&mi_mode_list, &mi_mode_rotation];
     let mode_sub  = Submenu::with_items(app, "Display Mode", true, &mode_items)?;
 
-    let mi_is_alert = CheckMenuItem::with_id(app, "toggle_alert", "Show Alert", true, true, None::<&str>)?;
+    let mi_is_alert = CheckMenuItem::with_id(app, "toggle_alert", "Alert Icon", true, true, None::<&str>)?;
+    let alert_items: [&dyn tauri::menu::IsMenuItem<_>; 1] = [&mi_is_alert];
+    let alert_sub = Submenu::with_items(app, "Alert", true, &alert_items)?;
 
     let options_items: [&dyn tauri::menu::IsMenuItem<_>; 3] = [
         &show_metrics_sub,
         &mode_sub,
-        &mi_is_alert,
+        &alert_sub,
     ];
     let options_sub = Submenu::with_items(app, "Options", true, &options_items)?;
     let exit_i = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;

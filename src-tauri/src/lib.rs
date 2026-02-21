@@ -3,6 +3,7 @@ use std::sync::{Mutex, Arc};
 use std::path::PathBuf;
 use tokio::sync::RwLock;
 use tauri::Manager;
+use tauri::ActivationPolicy;
 
 mod mac_metrics;
 mod metrics;
@@ -46,6 +47,8 @@ pub fn run() {
             metrics::service::spawn_metric_tasks(metrics.clone());
             updater::tray_updater::spawn_tray_renderer(app.handle().clone(), metrics);
 
+            // Dockに表示しない
+            app.set_activation_policy(ActivationPolicy::Accessory);
             Ok(())
         })
         .run(tauri::generate_context!())

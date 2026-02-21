@@ -23,7 +23,6 @@ pub async fn read_memory_pressure_pct() -> Result<f64, Box<dyn std::error::Error
     .ok_or("percent not found")?
     .trim_end_matches('%')
     .parse::<f64>()?;
-
   // free% → pressure% に変換（あなたが表示したいのが pressure 側なら）
   Ok((100.0 - free_pct).clamp(0.0, 100.0))
 }
@@ -82,12 +81,9 @@ pub async fn network_latency_ms() -> Result<f64, Box<dyn std::error::Error + Sen
     Ok(ms)
 }
 
-
-
 pub fn read_network_latency_ms() -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
     // DNS遅延を排除したいので IP 直指定が無難（Cloudflare）
     let latency_ms = tcp_latency().ok_or("tcp latency measurement failed")? as f64;
-
     Ok(latency_ms as u64)
 }
 
