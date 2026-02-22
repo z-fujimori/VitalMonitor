@@ -41,13 +41,20 @@ jobs:
         run: npm ci
 
       - name: Create API key file for notarization
-        if: startsWith(matrix.platform, 'macos')
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           KEY_PATH="$RUNNER_TEMP/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
           echo "${{ secrets.APPLE_API_KEY }}" | base64 -D > "$KEY_PATH"
           echo "APPLE_API_KEY_PATH=$KEY_PATH" >> $GITHUB_ENV
           ls -l "$KEY_PATH"
+      - name: Debug notarization env
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          echo "APPLE_API_KEY_PATH(from env)=$APPLE_API_KEY_PATH"
+          echo "APPLE_API_KEY_PATH(from github env)=${{ env.APPLE_API_KEY_PATH }}"
+          test -f "${{ env.APPLE_API_KEY_PATH }}" && echo "p8 exists" || (echo "p8 missing" && exit 1)
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -58,9 +65,9 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
           # APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
 
         with:
           tagName: ${{ github.ref_name }}
